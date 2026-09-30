@@ -1,248 +1,208 @@
-# Thinx - Quick Start Guide
+# THINX — FAIR Human Trafficking Data Analytics Platform
 
-**Goal:** Get Thinx running in under 10 minutes
+A data analytics and semantic knowledge-graph platform designed to support the integration, exploration, and analysis of human-trafficking data using **FAIR data principles, RDF, SPARQL, and containerized services**.
 
-**Audience:** This guide assumes zero technical knowledge.
+## Overview
 
----
+THINX provides a structured environment for transforming and exploring human-trafficking data through semantic technologies and linked-data principles.
 
-## What You Will Do
+The platform combines:
 
-By the end of this guide, you will:
-- Start Thinx on your computer
-- Create an account and log in
-- Connect to a research database
-- Be ready to upload and explore data
+* **RDF-based semantic data modeling**
+* **Knowledge graph technologies**
+* **SPARQL querying**
+* **FAIR data principles**
+* **Data processing and transformation**
+* **Docker-based deployment**
+* **Web-based data exploration and analytics**
 
-**Time needed:** Approximately 10 minutes
+## Architecture
 
----
+The platform consists of several interconnected components:
 
-## Prerequisites
-
-### Checklist
-
-- [ ] Docker Desktop installed and running (look for whale icon in taskbar)
-- [ ] 2GB free disk space
-- [ ] Web browser (Chrome, Firefox, Edge, or Safari)
-
-**Don't have Docker?**
-1. Download from [docker.com/get-started](https://docker.com/get-started)
-2. Install and restart your computer
-3. Open Docker Desktop and wait for "Running" status
-
----
-
-## Step 1: Open Terminal (1 minute)
-
-**Windows:**
-1. Press `Windows Key + R`
-2. Type `powershell` and press Enter
-
-**Mac:**
-1. Press `Command + Space`
-2. Type `terminal` and press Enter
-
-Note: A terminal is a window where you type commands to your computer.
-
-## Step 2: Navigate to Thinx Folder (1 minute)
-
-In the terminal, type (replace with your actual path):
-```bash
-cd "C:\Users\YourName\Documents\DataScienceInPractice"
+```text
+                    ┌─────────────────────┐
+                    │     Web Frontend     │
+                    │      Vue.js          │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │     Flask API       │
+                    │      Backend        │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │    AllegroGraph     │
+                    │   Knowledge Graph   │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ RDF / SPARQL Data   │
+                    │ Semantic Models     │
+                    └─────────────────────┘
 ```
 
-Tip: Drag the Thinx folder into the terminal window to auto-fill the path.
+## Technologies
 
----
+| Area            | Technologies             |
+| --------------- | ------------------------ |
+| Frontend        | Vue.js                   |
+| Backend         | Python, Flask            |
+| Knowledge Graph | AllegroGraph             |
+| Semantic Data   | RDF, Turtle              |
+| Query Language  | SPARQL                   |
+| Data Processing | Python, Jupyter          |
+| Deployment      | Docker, Docker Compose   |
+| Data Modeling   | Semantic Knowledge Graph |
+| API             | REST-style HTTP API      |
 
-## Step 3: Start Thinx (3-5 minutes)
+## Key Features
 
-Copy and paste this command:
-```bash
-docker-compose --profile full up --build
+### 1. Semantic Data Modeling
+
+The project represents structured human-trafficking information using RDF and semantic relationships.
+
+Example:
+
+```text
+Entity → Relationship → Entity
+Victim → associatedWith → Case
+Case → occurredIn → Location
 ```
 
-Press Enter and wait. Text will scroll - this is normal.
+This enables relationships between different entities to be represented and queried semantically.
 
-**What is starting:**
-- Frontend - The web interface
-- Backend - The API server
-- Database - AllegroGraph for data storage
-- AI - Smart mapping features
+### 2. SPARQL Querying
 
-**Timing:**
-- First time: 3-7 minutes (downloading images)
-- Subsequent: 30-60 seconds
+The platform supports querying the knowledge graph using SPARQL.
 
-**When ready, you will see:**
-```
-frontend_1  | ready in 1234 ms
-backend_1   | Running on http://0.0.0.0:5000
+Example:
+
+```sparql
+SELECT ?victim ?location
+WHERE {
+    ?victim <associatedWith> ?case .
+    ?case <occurredIn> ?location .
+}
 ```
 
-Warning: Do not close this terminal window. Leave it running in the background.
+### 3. Data Processing
 
-**Alternative: Faster startup without AI**
-```bash
-docker-compose --profile no-ai up --build
+Python-based processing workflows are included for transforming and preparing data for semantic representation.
+
+Relevant project components include:
+
+* `processing.ipynb`
+* `federated_query.py`
+* `federated_requirements.txt`
+
+### 4. Web Application
+
+The project includes a web-based interface for interacting with the backend and knowledge graph.
+
+```text
+Vue.js
+   ↓
+Flask API
+   ↓
+AllegroGraph
+   ↓
+RDF Knowledge Graph
 ```
 
----
+### 5. Dockerized Environment
 
-## Step 4: Open Thinx in Browser (1 minute)
-
-Open your web browser and go to: **http://localhost**
-
-Success: You should see the Thinx login page with a purple gradient header.
-
-If you see an error: Wait 30 seconds and refresh - services may still be starting.
-
----
-
-## Step 5: Create Your Account (2 minutes)
-
-### First Time User
-
-1. Click "Register" (below the login form)
-2. Fill in:
-   - **Username:** e.g., "marie_research"
-   - **Password:** At least 6 characters
-3. Click "Register"
-4. You will be logged in automatically
-
-### Returning User
-
-Enter your username and password and click "Login"
-
-Tip: Bookmark `http://localhost` for easy access.
-
----
-
-## Step 6: Connect to Database (3 minutes)
-
-### Setup AllegroGraph Repository
-
-1. Open **http://localhost:10035** in a new tab
-2. Login with: `admin` / `admin123`
-3. Click "Create Repository"
-4. Repository Name: `humantrafficking`
-5. Click "Create"
-
-### Connect Thinx to Database
-
-1. Go back to **http://localhost**
-2. Click "Add AllegroGraph Connection"
-3. Fill in:
-   - **Name:** `My Research Database`
-   - **Host:** `allegrograph`
-   - **Port:** `10035`
-   - **Repository:** `humantrafficking`
-   - **Username:** `admin`
-   - **Password:** `admin123`
-4. Click "Save"
-
-Success: You should see a green "Active" indicator.
-
----
-
-## Step 7: Try It Out (5 minutes)
-
-### Option A: Upload Sample Data
-
-1. Go to `Mock data/` folder in your Thinx directory
-2. Find `Interview_mock_comprehensive.csv`
-3. Upload through "Step 2: Upload Data"
-4. Follow the AI mapping workflow
-
-### Option B: Explore the Interface
-
-Click the "Help" button to see:
-- Database Connection tips
-- Data Workflow guide
-- AI Smart Mapper overview
-- Data Viewer features
-
----
-
-## Stopping Thinx
-
-When done for the day:
-
-1. Go to the terminal window
-2. Press `Ctrl+C`
-3. Wait for services to stop (10 seconds)
-4. Type: `docker-compose down`
-
-Your data is safe. Next time, just run: `docker-compose --profile full up`
-
----
-
-## Common Problems and Solutions
-
-### "Port already in use"
-
-Another program is using port 80. Stop XAMPP, IIS, or Apache and try again.
-
-**Windows - find what's using the port:**
-```bash
-netstat -ano | findstr :80
-taskkill /PID [number] /F
-```
-
-### "Cannot connect to Docker daemon"
-
-Docker isn't running. Open Docker Desktop and wait for it to start.
-
-### "502 Bad Gateway"
-
-Backend is still starting. Wait 30 seconds and refresh your browser.
-
-### "No data found"
-
-Your database is empty. Upload sample data from `Mock data/` folder.
-
-### Start fresh / Reset everything
+The project can be deployed using Docker Compose to simplify setup and ensure consistent environments.
 
 ```bash
-docker-compose down -v    # Warning: Deletes all data
-docker-compose --profile full up --build
+docker compose up --build
 ```
 
-For more help, see [FAQ.md](FAQ.md) or [README.md#troubleshooting](README.md#troubleshooting)
+## Project Structure
 
----
+```text
+THINX/
+│
+├── backend/                 # Flask backend/API
+├── frontend/                # Vue.js frontend
+├── docs/                    # Project documentation
+├── Mock data/               # Anonymized/sample data
+├── sparql queries/          # SPARQL queries
+│
+├── docker-compose.yml       # Container orchestration
+├── hds_cdm.ttl              # Semantic data model
+├── federated_query.py       # Federated query workflow
+├── processing.ipynb         # Data processing notebook
+│
+├── README.md
+├── QUICK_START.md
+├── ADMIN_GUIDE.md
+├── USER_GUIDE.md
+└── FAQ.md
+```
 
-## What's Next
+## Running the Project
 
-### Learn More
+### Prerequisites
 
-| I want to... | Read this |
-|-------------|-----------|
-| Learn all features | [USER_GUIDE.md](USER_GUIDE.md) |
-| Deploy for a team | [ADMIN_GUIDE.md](ADMIN_GUIDE.md) |
-| Quick answers | [FAQ.md](FAQ.md) |
-| Understand the system | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+Install:
 
-### Common Next Steps
+* Docker
+* Docker Compose
+* Python 3.x
+* Node.js / npm
 
-1. **Upload sample data** - Try `Mock data/Interview_mock_comprehensive.csv`
-2. **Try the AI mapper** - Let AI organize your columns automatically
-3. **Connect to real data** - Get credentials from your research coordinator
-4. **Write queries** - Explore patterns in your data
+### Start with Docker
 
-Note: You can't break anything by exploring. Click around and learn.
+```bash
+docker compose up --build
+```
 
----
+After the containers start, access the relevant services using the ports configured in `docker-compose.yml`.
 
-## Quick Reference
+## Data and Privacy
 
-**Start:** `docker-compose --profile full up --build`  
-**Stop:** `Ctrl+C` then `docker-compose down`
+This repository does **not** include private production data or local AllegroGraph database storage.
 
-**URLs:**
-- Main app: http://localhost
-- Database admin: http://localhost:10035
-- Default login: `admin` / `admin123`
+Sensitive/generated data and database runtime files are excluded through `.gitignore`.
 
-For questions, check [FAQ.md](FAQ.md) first.
+The repository is intended to demonstrate the project's architecture, data modeling, processing workflows, and software implementation.
+
+## FAIR Data Principles
+
+The project explores the use of FAIR principles:
+
+* **Findable**
+* **Accessible**
+* **Interoperable**
+* **Reusable**
+
+Semantic technologies such as RDF and SPARQL support interoperability and structured data discovery.
+
+## My Contribution
+
+My work on the project included contributions to:
+
+* Data modeling and semantic representation
+* RDF/Turtle data preparation
+* Knowledge graph integration
+* SPARQL query development
+* Python-based data processing
+* Backend/API development
+* Docker-based deployment and testing
+* Integration between the frontend, backend, and knowledge graph
+* Documentation and project setup
+
+## Project Purpose
+
+THINX demonstrates how semantic technologies and FAIR data practices can be applied to human-trafficking data to support structured data integration, querying, and analysis.
+
+## Disclaimer
+
+The repository contains development/demo materials and anonymized or mock data where applicable. It should not be interpreted as a repository of real-world personally identifiable human-trafficking records.
+
+## License
+
+Add the appropriate project license here if the project owner has specified one.
