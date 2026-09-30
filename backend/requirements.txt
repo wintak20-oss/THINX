@@ -1,0 +1,13 @@
+Flask==3.0.0
+flask-cors==4.0.0
+agraph-python==101.0.6
+rdflib==7.0.0
+requests==2.31.0
+Werkzeug==3.0.1
+python-dotenv==1.0.0
+urllib3==1.26.18
+pycurl==7.45.2
+pandas==2.1.4
+openpyxl==3.1.2
+jupyter==1.0.0
+nbconvert==7.12.0

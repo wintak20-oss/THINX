@@ -1,0 +1,21 @@
+PREFIX ht: <http://example.org/humantrafficking/>
+
+# Mock Data Test: Crime Statistics
+# Quick overview of crimes in the mock dataset
+
+SELECT ?crimeType (COUNT(?crime) AS ?count)
+WHERE {
+    {
+        ?victim ht:experiencedCrime ?crime .
+        ?crime a ?crimeType .
+        FILTER(?crimeType != ht:Crime)
+    }
+    UNION
+    {
+        ?victim ht:witnessedCrime ?crime .
+        ?crime a ?crimeType .
+        FILTER(?crimeType != ht:Crime)
+    }
+}
+GROUP BY ?crimeType
+ORDER BY DESC(?count)

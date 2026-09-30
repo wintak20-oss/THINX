@@ -1,0 +1,23 @@
+PREFIX ex: <http://example.org/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?borderName (SUM(?victimCount) AS ?totalVictimCount)
+WHERE {
+  {
+    SELECT ?borderName (COUNT(?victim) AS ?victimCount)
+    WHERE {
+      ?victim ex:wasTraffickedBy ?trafficker ;
+              ex:hasCrossedBorder ?border .
+
+      # Extract clean border names
+      BIND(STR(REPLACE(STR(?border), ".*_", "")) AS ?borderName)
+
+      # Filter out empty border names
+      FILTER(?borderName != "")
+    }
+    GROUP BY ?borderName
+  }
+}
+GROUP BY ?borderName
+ORDER BY DESC(?totalVictimCount)
+LIMIT 10

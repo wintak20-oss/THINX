@@ -1,0 +1,5 @@
+# Federated Query Requirements
+# Install these packages to run federated_query.py
+
+requests>=2.31.0
+pandas>=2.0.0

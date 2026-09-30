@@ -1,0 +1,20 @@
+PREFIX ex: <http://example.org/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?borderName (SUM(?amountInEuro) AS ?totalAmountInEuro)
+WHERE {
+  ?border ex:wasExtortedMoney ?moneyAmountExtorted ;
+          ex:hasCurrencyType ?currencyType .
+  ?currencyType rdfs:label ?currencyLabel .
+
+  BIND(
+    IF(?currencyLabel = "eur", ?moneyAmountExtorted,
+    IF(?currencyLabel = "usd", ?moneyAmountExtorted * 0.85,
+    IF(?currencyLabel = "dinar", ?moneyAmountExtorted * 2.5,
+    IF(?currencyLabel = "birr", ?moneyAmountExtorted * 0.02,
+    IF(?currencyLabel = "cfa", ?moneyAmountExtorted * 0.0015, 0))))) AS ?amountInEuro)
+  BIND(REPLACE(STR(?border), "^.*_", "") AS ?borderName)
+}
+GROUP BY ?borderName
+ORDER BY DESC(?totalAmountInEuro)

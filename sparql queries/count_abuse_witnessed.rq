@@ -1,0 +1,9 @@
+PREFIX ex: <http://example.org/ontology#>
+
+SELECT ?seenAbuseType (COUNT(?victim) AS ?totalVictims)
+WHERE {
+  ?victim ex:seenAbuse ?seenAbuseType .
+  FILTER(?seenAbuseType != "no data")
+}
+GROUP BY ?seenAbuseType
+ORDER BY DESC(?totalVictims)

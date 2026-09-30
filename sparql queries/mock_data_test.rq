@@ -1,0 +1,18 @@
+PREFIX ht: <http://example.org/humantrafficking/>
+
+# Mock Data Test Query: Get all victims with their basic information
+# This query works well with the mock data in Mock data/ folder
+
+SELECT DISTINCT ?victim ?age ?gender ?nationality ?border
+WHERE {
+    ?victim a ht:Victim .
+    OPTIONAL { ?victim ht:age ?age }
+    OPTIONAL { ?victim ht:gender ?gender }
+    OPTIONAL { ?victim ht:nationality ?nationality }
+    OPTIONAL { 
+        ?victim ht:crossedBorder ?borderCrossing .
+        ?borderCrossing ht:borderName ?border 
+    }
+}
+ORDER BY ?victim
+LIMIT 50

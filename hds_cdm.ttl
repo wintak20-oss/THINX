@@ -1,0 +1,274 @@
+@prefix hds: <http://example.org/hds#> .
+@prefix schema: <http://schema.org/> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix gsso: <http://purl.org/gsso/> .
+@prefix nci: <http://ncicb.nci.nih.gov/xml/owl/EVS/> .
+@prefix add: <http://example.org/add#> .
+
+#### CLASSES
+
+hds:Article a owl:Class ;
+    rdfs:label "Article" ;
+    rdfs:comment "A publication or news article" ;
+    owl:equivalentClass schema:Article .
+
+hds:Camp a owl:Class ;
+    rdfs:label "Camp" ;
+    rdfs:comment "A humanitarian camp or settlement" ;
+    owl:equivalentClass nci:RefugeeCamp .
+
+hds:Destination a owl:Class ;
+    rdfs:label "Destination" ;
+    rdfs:comment "The destination point of a movement" ;
+    owl:equivalentClass schema:Place, nci:Destination .
+
+hds:Event a owl:Class ;
+    rdfs:label "Event" ;
+    rdfs:comment "Something that happens at a given place and time" ;
+    owl:equivalentClass schema:Event, nci:Event .
+
+hds:Incident a owl:Class ;
+    rdfs:label "Incident" ;
+    rdfs:comment "A security or humanitarian incident" ;
+    owl:equivalentClass schema:Event .
+
+hds:Location a owl:Class ;
+    rdfs:label "Location" ;
+    rdfs:comment "A geospatial location" ;
+    owl:equivalentClass schema:Place .
+
+hds:Perpetrator a owl:Class ;
+    rdfs:label "Perpetrator" ;
+    rdfs:comment "A person responsible for an action causing harm" ;
+    owl:equivalentClass schema:Person, add:Perpetrator .
+
+hds:Publication a owl:Class ;
+    rdfs:label "Publication" ;
+    rdfs:comment "Any published work" ;
+    owl:equivalentClass schema:CreativeWork, nci:Publication .
+
+hds:Organisation a owl:Class ;
+    rdfs:label "Organisation" ;
+    rdfs:comment "A structured group of individuals working together" ;
+    owl:equivalentClass schema:Organization .
+
+hds:Record a owl:Class ;
+    rdfs:label "Record" ;
+    rdfs:comment "A dataset record (data provenance)" ;
+    owl:equivalentClass schema:Record, schema:CreativeWork, prov:Entity .
+
+hds:Situation a owl:Class ;
+    rdfs:label "Situation" ;
+    rdfs:comment "A state or condition; more precise than prov:Entity" ;
+    owl:equivalentClass schema:State .
+
+hds:SituationReport a owl:Class ;
+    rdfs:label "Situation Report" ;
+    rdfs:comment "A humanitarian situation report" ;
+    owl:equivalentClass schema:Report .
+
+hds:Source a owl:Class ;
+    rdfs:label "Source" ;
+    rdfs:comment "A source of information (provenance)" ;
+    owl:equivalentClass schema:Article, prov:Entity .
+
+hds:Trafficker a owl:Class ;
+    rdfs:label "Trafficker" ;
+    rdfs:comment "A person engaged in illegal trade of people or goods" ;
+    owl:equivalentClass foaf:Person, schema:Role .
+
+hds:Victim a owl:Class ;
+    rdfs:label "Victim" ;
+    rdfs:comment "Person harmed in an incident." ;
+    owl:equivalentClass foaf:Person, schema:Role, gsso:Victim .
+
+#### GENERAL DATATYPE PROPERTIES
+
+hds:id a owl:DatatypeProperty ;
+    rdfs:label "ID" ;
+    rdfs:comment "Unique identifier" ;
+    owl:equivalentProperty dct:identifier, schema:identifier ;
+    rdfs:domain [
+        owl:unionOf (
+            hds:Incident hds:Record hds:Victim hds:Trafficker hds:Perpetrator
+            hds:Destination hds:Location hds:Source hds:Organisation
+        )
+    ] ;
+    rdfs:range xsd:string .
+
+hds:date a owl:DatatypeProperty ;
+    rdfs:label "Date" ;
+    owl:equivalentProperty schema:date ;
+    rdfs:domain [ owl:unionOf (hds:Incident hds:Record hds:Event) ] ;
+    rdfs:range xsd:date .
+
+hds:description a owl:DatatypeProperty ;
+    rdfs:label "Description" ;
+    owl:equivalentProperty dct:description, schema:description ;
+    rdfs:domain [
+        owl:unionOf (
+            hds:Victim hds:Location hds:Incident hds:Event hds:Perpetrator
+            hds:Destination hds:Trafficker hds:Organisation
+        )
+    ] ;
+    rdfs:range xsd:string .
+
+hds:type a owl:DatatypeProperty ;
+    rdfs:label "Type" ;
+    rdfs:comment "The RDF type/class of an entity" ;
+    owl:equivalentProperty rdf:type ;
+    rdfs:domain [ owl:unionOf (hds:Incident hds:Event) ] ;
+    rdfs:range xsd:string .
+
+hds:timeRange a owl:DatatypeProperty ;
+    rdfs:label "Time range" ;
+    owl:equivalentProperty add:timeRange ;
+    rdfs:domain [ owl:unionOf (hds:Incident hds:Record hds:Event) ] ;
+    rdfs:range xsd:string .
+
+#### RECORD PROPERTIES
+
+hds:inputBy a owl:DatatypeProperty ;
+    rdfs:label "Input by" ;
+    owl:equivalentProperty prov:wasAttributedTo ;
+    rdfs:domain hds:Record ;
+    rdfs:range xsd:string .
+
+hds:link a owl:DatatypeProperty ;
+    rdfs:label "Link" ;
+    owl:equivalentProperty schema:url ;
+    rdfs:domain [ owl:unionOf (hds:Publication hds:SituationReport hds:Article) ] ;
+    rdfs:range xsd:string .
+
+hds:source a owl:DatatypeProperty ;
+    rdfs:label "Source" ;
+    owl:equivalentProperty dct:source ;
+    rdfs:domain hds:Record ;
+    rdfs:range xsd:string .
+
+hds:updatedAt a owl:DatatypeProperty ;
+    rdfs:label "Updated at" ;
+    owl:equivalentProperty dct:modified ;
+    rdfs:domain hds:Record ;
+    rdfs:range xsd:dateTime .
+
+#### EVENT / INCIDENT PROPERTIES
+
+hds:affected a owl:ObjectProperty ;
+    rdfs:label "Affected" ;
+    owl:equivalentProperty schema:affectedBy ;
+    rdfs:domain [ owl:unionOf (hds:Event hds:Incident) ] ;
+    rdfs:range [ owl:unionOf (hds:Victim hds:Organisation) ] .
+
+hds:involved a owl:ObjectProperty ;
+    rdfs:label "Involved" ;
+    owl:equivalentProperty schema:participant ;
+    rdfs:domain [ owl:unionOf (hds:Event hds:Incident) ] ;
+    rdfs:range [ owl:unionOf (hds:Victim hds:Trafficker hds:Perpetrator hds:Organisation) ] .
+
+hds:location a owl:ObjectProperty ;
+    rdfs:label "Location" ;
+    owl:equivalentProperty schema:location ;
+    rdfs:domain [ owl:unionOf (hds:Destination hds:Incident hds:Camp hds:Event hds:Organisation) ] ;
+    rdfs:range hds:Location .
+
+hds:responseBy a owl:ObjectProperty ;
+    rdfs:domain [ owl:unionOf (hds:Event hds:Incident) ] ;
+    rdfs:range hds:Organisation .
+
+hds:isPerpetratorOf a owl:ObjectProperty ;
+    rdfs:domain hds:Perpetrator ;
+    rdfs:range [ owl:unionOf (hds:Event hds:Incident) ] .
+
+hds:isVictimOf a owl:ObjectProperty ;
+    owl:equivalentProperty schema:participant ;
+    rdfs:domain hds:Victim ;
+    rdfs:range [ owl:unionOf (hds:Event hds:Incident) ] .
+
+#### SITUATION PROPERTIES
+
+hds:accommodation a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:accommodationCategory, schema:amenityFeature ;
+    rdfs:domain hds:Situation ;
+    rdfs:range [ owl:oneOf ("Tent" "Appartment" "House") ] .
+
+hds:needs a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:requires ;
+    rdfs:domain hds:Camp ;
+    rdfs:range [ owl:oneOf (
+        "Health" "Education" "Shelter" "Protection" "WASH"
+        "Food security" "Transportation" "Communication"
+        "Mental Health" "Spiritual support" "Administrative support"
+    ) ] .
+
+hds:number a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:quantity ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Perpetrator) ] ;
+    rdfs:range xsd:integer .
+
+hds:situation a owl:DatatypeProperty ;
+    rdfs:domain hds:Situation ;
+    rdfs:range [ owl:oneOf ("In captivity" "En route") ] .
+
+hds:displacementStatus a owl:DatatypeProperty ;
+    rdfs:domain hds:Victim ;
+    rdfs:range [ owl:oneOf ("Refugee" "IDP") ] .
+
+hds:captivityStatus a owl:DatatypeProperty ;
+    rdfs:domain hds:Victim ;
+    rdfs:range [ owl:oneOf ("in captivity" "not in captivity") ] .
+
+#### ENTITY PROPERTIES
+
+hds:affiliation a owl:ObjectProperty ;
+    owl:equivalentProperty schema:affiliation ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Perpetrator) ] ;
+    rdfs:range hds:Organisation .
+
+hds:age a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:age ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Perpetrator hds:Trafficker) ] ;
+    rdfs:range xsd:integer .
+
+hds:ageGroup a owl:DatatypeProperty ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Perpetrator hds:Trafficker) ] ;
+    rdfs:range [ owl:oneOf ("0-15" "15-25" "25-40" "40-60" "60+") ] .
+
+hds:category a owl:DatatypeProperty ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Perpetrator hds:Trafficker) ] ;
+    rdfs:range [ owl:oneOf ("Individual" "Group") ] .
+
+hds:ethnicity a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:ethnicity ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Perpetrator hds:Trafficker) ] ;
+    rdfs:range xsd:string .
+
+hds:gender a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:gender ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Perpetrator hds:Trafficker) ] ;
+    rdfs:range [ owl:oneOf ("Male" "Female" "Other") ] .
+
+hds:maritalStatus a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:maritalStatus ;
+    rdfs:domain hds:Victim ;
+    rdfs:range [ owl:oneOf ("Married" "Single" "Divorced" "Widowed") ] .
+
+hds:name a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:name ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Trafficker hds:Perpetrator hds:Organisation) ] ;
+    rdfs:range xsd:string .
+
+hds:nationality a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:nationality ;
+    rdfs:domain [ owl:unionOf (hds:Victim hds:Trafficker hds:Perpetrator) ] ;
+    rdfs:range [ owl:oneOf ("Sudan" "Eritrea" "Ethiopia" "Uganda" "Kenya" "Libya" "Tunisia" "Chad") ] .
+
+hds:parentalStatus a owl:DatatypeProperty ;
+    owl:equivalentProperty schema:parentalStatus ;
+    rdfs:domain hds:Victim ;
+    rdfs:range [ owl:oneOf ("Is a parent" "Is not a parent") ] .

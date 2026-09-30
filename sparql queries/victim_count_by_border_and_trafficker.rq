@@ -1,0 +1,63 @@
+PREFIX ex: <http://example.org/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?borderName ?traffickerLabel ?victimCount
+WHERE {
+  {
+    SELECT ?borderName (MAX(?victimCount) AS ?maxVictimCount)
+    WHERE {
+      {
+        SELECT ?borderName ?traffickerLabel (COUNT(?victim) AS ?victimCount)
+        WHERE {
+          ?victim ex:wasTraffickedBy ?trafficker ;
+                  ex:hasCrossedBorder ?border .
+
+          # Extract trafficker label
+          ?trafficker rdfs:label ?traffickerLabel .
+
+          # Extract clean border names
+          BIND(STR(REPLACE(STR(?border), ".*_", "")) AS ?borderName)
+
+          # Filter out single-alphabet trafficker names
+          FILTER(STRLEN(?traffickerLabel) > 1)
+
+          # Filter out empty border names
+          FILTER(?borderName != "")
+
+          # Filter out traffickerLabel with value "no data"
+          FILTER(?traffickerLabel != "no data")
+        }
+        GROUP BY ?borderName ?traffickerLabel
+      }
+    }
+    GROUP BY ?borderName
+  }
+  {
+    SELECT ?borderName ?traffickerLabel (COUNT(?victim) AS ?victimCount)
+    WHERE {
+      ?victim ex:wasTraffickedBy ?trafficker ;
+              ex:hasCrossedBorder ?border .
+
+      # Extract trafficker label
+      ?trafficker rdfs:label ?traffickerLabel .
+
+      # Extract clean border names
+      BIND(STR(REPLACE(STR(?border), ".*_", "")) AS ?borderName)
+
+      # Filter out single-alphabet trafficker names
+      FILTER(STRLEN(?traffickerLabel) > 1)
+
+      # Filter out empty border names
+      FILTER(?borderName != "")
+
+      # Filter out traffickerLabel with value "no data"
+      FILTER(?traffickerLabel != "no data")
+    }
+    GROUP BY ?borderName ?traffickerLabel
+  }
+  # Match the maximum victim count for each border
+  FILTER(?victimCount = ?maxVictimCount)
+  # Remove rows where victimCount is 1
+  FILTER(?victimCount > 1)
+}
+ORDER BY ?borderName

@@ -1,0 +1,104 @@
+# Test SPARQL Queries for AllegroGraph
+
+# ============================================
+# Query 1: Count all victims in the database
+# ============================================
+PREFIX ex: <http://example.org/ontology#>
+
+SELECT (COUNT(?victim) AS ?totalVictims)
+WHERE {
+    ?victim a ex:Victim .
+}
+
+# ============================================
+# Query 2: List first 10 victims with their basic info
+# ============================================
+PREFIX ex: <http://example.org/ontology#>
+
+SELECT ?victim ?age ?gender ?nationality
+WHERE {
+    ?victim a ex:Victim ;
+           ex:hasAge ?age ;
+           ex:hasGender ?gender .
+    OPTIONAL { ?victim ex:hasNationality ?nat .
+               ?nat rdfs:label ?nationality . }
+}
+LIMIT 10
+
+# ============================================
+# Query 3: Count victims by nationality
+# ============================================
+PREFIX ex: <http://example.org/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?nationality (COUNT(?victim) AS ?count)
+WHERE {
+    ?victim a ex:Victim ;
+           ex:hasNationality ?nat .
+    ?nat rdfs:label ?nationality .
+}
+GROUP BY ?nationality
+ORDER BY DESC(?count)
+
+# ============================================
+# Query 4: Find victims who experienced sexual violence
+# ============================================
+PREFIX ex: <http://example.org/ontology#>
+
+SELECT ?victim ?violenceType
+WHERE {
+    ?victim a ex:Victim ;
+           ex:experiencedSexualViolence ?violenceType .
+}
+LIMIT 20
+
+# ============================================
+# Query 5: Count all borders crossed
+# ============================================
+PREFIX ex: <http://example.org/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?borderName (COUNT(?border) AS ?crossingCount)
+WHERE {
+    ?victim ex:hasCrossedBorder ?border .
+    ?border rdfs:label ?borderName .
+}
+GROUP BY ?borderName
+ORDER BY DESC(?crossingCount)
+
+# ============================================
+# Query 6: Find victims and their traffickers
+# ============================================
+PREFIX ex: <http://example.org/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?victim ?trafficker
+WHERE {
+    ?victim a ex:Victim ;
+           ex:wasTraffickedBy ?traff .
+    ?traff rdfs:label ?trafficker .
+}
+LIMIT 10
+
+# ============================================
+# Query 7: Total extortion amounts by border
+# ============================================
+PREFIX ex: <http://example.org/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?borderName (SUM(?amount) AS ?totalExtorted) (COUNT(?border) AS ?instances)
+WHERE {
+    ?border a ex:Border ;
+           rdfs:label ?borderName ;
+           ex:wasExtortedMoney ?amount .
+}
+GROUP BY ?borderName
+ORDER BY DESC(?totalExtorted)
+
+# ============================================
+# Query 8: Simple test - Count all triples
+# ============================================
+SELECT (COUNT(*) AS ?totalTriples)
+WHERE {
+    ?s ?p ?o .
+}
