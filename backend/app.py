@@ -10,7 +10,7 @@ using local AI. All data processing is GDPR-compliant and happens on-premises.
 CDM is defined in hds_cdm.ttl and models.py
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 import os
 import json
@@ -23,11 +23,27 @@ from utils.ai_mapper import SmartMapper
 from utils.fair_data_point import FairDataPointClient
 
 app = Flask(__name__)
+secret_key = os.environ.get("SECRET_KEY")
+
+if not secret_key:
+    raise RuntimeError("SECRET_KEY must be set in the environment")
+
+app.config.update(
+    SECRET_KEY=secret_key,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,
+)
 
 # Enable CORS for Vue.js frontend
-CORS(app, resources={
+CORS(app, supports_credentials=True, resources={
     r"/api/*": {
-        "origins": ["http://localhost:8080", "http://localhost"],
+        "origins": [
+            "http://localhost:8081",
+            "http://127.0.0.1:8081",
+            "http://localhost:8080",
+            "http://localhost"
+        ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
@@ -42,6 +58,53 @@ USERS_FILE = DATA_DIR / 'users.json'
 # Initialize managers
 connection_manager = ConnectionManager(CONNECTIONS_FILE)
 user_manager = UserManager(USERS_FILE)
+# ============================================================================
+# AUTHENTICATION AND AUTHORIZATION
+# ============================================================================
+
+PUBLIC_API_PATHS = {
+    "/api/health",
+    "/api/register",
+    "/api/login",
+    "/api/logout",
+}
+
+@app.before_request
+def require_api_authentication():
+    # Let browser CORS preflight requests complete.
+    if request.method == "OPTIONS":
+        return None
+
+    if not request.path.startswith("/api/"):
+        return None
+
+    # These endpoints must remain available before login.
+    if request.path in PUBLIC_API_PATHS:
+        return None
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({
+            "success": False,
+            "error": "Authentication required"
+        }), 401
+
+    # Recheck the user on every request so deleted/disabled accounts
+    # cannot continue using a previously issued session.
+    user = user_manager.get_user(user_id)
+    if not user:
+        session.clear()
+        return jsonify({
+            "success": False,
+            "error": "Authentication required"
+        }), 401
+
+    if request.path.startswith("/api/admin/") and not user.get("is_admin", False):
+        return jsonify({
+            "success": False,
+            "error": "Administrator access required"
+        }), 403
+
 
 
 # ============================================================================
@@ -287,8 +350,15 @@ def login():
         user = user_manager.authenticate(username, password)
         
         if user:
-            # Remove password hash from response
-            user_data = {k: v for k, v in user.items() if k != 'password_hash'}
+            # Start a fresh authenticated session after successful login.
+            session.clear()
+            session["user_id"] = user["id"]
+            session.permanent = True
+
+            # authenticate() returns public fields; never expose password hashes.
+            user_data = dict(user)
+            user_data.pop("password_hash", None)
+
             return jsonify({
                 'success': True,
                 'user': user_data,
@@ -307,9 +377,35 @@ def login():
         }), 500
 
 
+@app.route('/api/me', methods=['GET'])
+def current_user():
+    """Return the authenticated user's public profile."""
+    user_id = session.get("user_id")
+    user = user_manager.get_user(user_id) if user_id else None
+
+    if not user:
+        session.clear()
+        return jsonify({
+            "success": False,
+            "error": "Authentication required"
+        }), 401
+
+    # Never return the stored password hash or other internal fields.
+    public_user = {
+        key: value for key, value in user.items()
+        if key != "password_hash"
+    }
+
+    return jsonify({
+        "success": True,
+        "user": public_user
+    }), 200
+
+
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    """Logout user (client-side session management)"""
+    """Clear the current Flask session."""
+    session.clear()
     return jsonify({
         'success': True,
         'message': 'Logout successful'
@@ -448,6 +544,15 @@ def debug_types():
         }), 500
 
 
+def public_connection(connection):
+    """Return connection metadata without exposing stored credentials."""
+    if not isinstance(connection, dict):
+        return connection
+    result = dict(connection)
+    result.pop("password", None)
+    return result
+
+
 @app.route('/api/connections', methods=['GET'])
 def get_connections():
     """
@@ -469,7 +574,8 @@ def get_connections():
     """
     try:
         user_id = request.args.get('user_id')
-        connections = connection_manager.get_all_connections(user_id=user_id)
+        stored_connections = connection_manager.get_all_connections(user_id=user_id)
+        connections = [public_connection(c) for c in stored_connections]
         return jsonify({
             'success': True,
             'connections': connections,
@@ -585,7 +691,7 @@ def create_connection():
         return jsonify({
             'success': True,
             'message': 'Connection created successfully',
-            'connection': saved_connection
+            'connection': public_connection(saved_connection)
         }), 201
         
     except Exception as e:
@@ -609,7 +715,7 @@ def get_connection(connection_id):
         
         return jsonify({
             'success': True,
-            'connection': connection
+            'connection': public_connection(connection)
         }), 200
         
     except Exception as e:
@@ -635,7 +741,7 @@ def update_connection(connection_id):
         return jsonify({
             'success': True,
             'message': 'Connection updated successfully',
-            'connection': updated_connection
+            'connection': public_connection(updated_connection)
         }), 200
         
     except Exception as e:
@@ -707,7 +813,7 @@ def get_active_connection():
         
         return jsonify({
             'success': True,
-            'connection': active_connection
+            'connection': public_connection(active_connection)
         }), 200
         
     except Exception as e:

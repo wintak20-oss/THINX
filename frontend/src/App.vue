@@ -86,6 +86,7 @@
 
 <script>
 import Toast from './components/Toast.vue'
+import api from './services/api'
 
 export default {
   name: 'App',
@@ -103,48 +104,55 @@ export default {
       toast: this.$refs.toast
     }
   },
-  mounted() {
-    // Check if user is already logged in
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        this.user = JSON.parse(storedUser);
-      } catch (e) {
-        // Invalid stored user data, clear it
-        if (import.meta.env.MODE === 'development') {
-          console.error('Error parsing stored user:', e);
-        }
-        localStorage.removeItem('user');
+  async mounted() {
+    // The backend session, not localStorage, determines authentication.
+    try {
+      const result = await api.getCurrentUser()
+
+      if (result && result.success && result.user) {
+        this.user = result.user
+        localStorage.setItem('user', JSON.stringify(result.user))
+      } else {
+        this.user = null
+        localStorage.removeItem('user')
       }
+    } catch (error) {
+      this.user = null
+      localStorage.removeItem('user')
     }
-    
-    // Redirect to login if not logged in and not on auth pages
+
     if (!this.user && !['Login', 'Register'].includes(this.$route.name)) {
-      this.$router.push('/login');
+      this.$router.push('/login')
     }
   },
   methods: {
     handleLogin(userData) {
-      this.user = userData;
-      this.showHelp = false;
+      this.user = userData
+      localStorage.setItem('user', JSON.stringify(userData))
+      this.showHelp = false
     },
-    handleLogout() {
-      if (confirm('Are you sure you want to logout?')) {
-        this.user = null;
-        this.showHelp = false;
-        localStorage.removeItem('user');
-        this.$router.push('/login');
+    async handleLogout() {
+      if (!confirm('Are you sure you want to logout?')) {
+        return
+      }
+
+      try {
+        await api.logout()
+      } catch (error) {
+        // Clear local UI state even if the backend cannot be reached.
+        console.error('Logout request failed; server session may still be active.')
+      } finally {
+        this.user = null
+        this.showHelp = false
+        localStorage.removeItem('user')
+        await this.$router.push('/login')
       }
     }
   },
   watch: {
-    $route(to) {
-      // Redirect to login if user is not logged in and trying to access protected routes
-      if (!this.user && !['Login', 'Register'].includes(to.name)) {
-        this.$router.push('/login');
-      }
-      // Hide help when navigating
-      this.showHelp = false;
+    $route() {
+      // Authentication redirects are handled by the router guard.
+      this.showHelp = false
     }
   }
 }

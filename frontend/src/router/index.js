@@ -41,19 +41,41 @@ const router = createRouter({
   routes
 })
 
-// Navigation guard to check authentication
-router.beforeEach((to, from, next) => {
-  const user = localStorage.getItem('user')
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+import api from '../services/api'
 
-  if (requiresAuth && !user) {
-    // Redirect to login if route requires auth and user is not logged in
-    next('/login')
-  } else if (!requiresAuth && user && (to.name === 'Login' || to.name === 'Register')) {
-    // Redirect to home if user is logged in and trying to access login/register
-    next('/')
-  } else {
-    next()
+// Validate protected navigation against the backend session.
+router.beforeEach(async (to) => {
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+  const isAuthPage = to.name === 'Login' || to.name === 'Register'
+
+  if (!requiresAuth && !isAuthPage) {
+    return true
+  }
+
+  try {
+    const result = await api.getCurrentUser()
+
+    if (!result || !result.success || !result.user) {
+      localStorage.removeItem('user')
+      return requiresAuth ? { name: 'Login', query: { redirect: to.fullPath } } : true
+    }
+
+    // Keep the UI cache synchronized with the authenticated server user.
+    localStorage.setItem('user', JSON.stringify(result.user))
+
+    if (isAuthPage) {
+      return { name: 'Workflow' }
+    }
+
+    return true
+  } catch (error) {
+    localStorage.removeItem('user')
+
+    if (requiresAuth) {
+      return { name: 'Login', query: { redirect: to.fullPath } }
+    }
+
+    return true
   }
 })
 

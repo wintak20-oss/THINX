@@ -13,6 +13,7 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
+  withCredentials: true,
   timeout: 150000  // Increased to 150 seconds for AI operations
 })
 
@@ -225,4 +226,20 @@ export default {
     const response = await apiClient.get(`/fair/catalogs/${encodedId}`)
     return response.data
   }
+
+  async login(credentials) {
+    const response = await apiClient.post('/login', credentials)
+    return response.data
+  },
+
+  async logout() {
+    const response = await apiClient.post('/logout')
+    return response.data
+  },
+
+  async getCurrentUser() {
+    const response = await apiClient.get('/me')
+    return response.data
+  },
+
 }

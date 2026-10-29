@@ -1,20 +1,18 @@
-version: "3.9"
-
 services:
-
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: vue_ui
     ports:
-      - "8080:80"
-    environment:
-      - VITE_API_URL=http://localhost:5000
+      - "8081:80"
     depends_on:
       - backend
+    environment:
+      VITE_API_URL: "http://localhost:5000"
     networks:
       - app_network
+    restart: unless-stopped
 
   backend:
     build:
@@ -27,25 +25,20 @@ services:
       - ./backend:/workspace
     working_dir: /workspace
     environment:
-      - FLASK_APP=app.py
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
-      - AGRAPH_HOST=ag1jdz6nqkhfjj72.allegrograph.cloud
-      - AGRAPH_PORT=10035
-      - AGRAPH_SUPER_USER=Admin
-      - AGRAPH_SUPER_PASSWORD=KbA8KuX3E7aZSOVwGCxiK4
-        networks:
-      - app_network
-
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama_service
-    ports:
-      - "11434:11434"
+      FLASK_APP: app.py
+      FLASK_ENV: development
+      FLASK_DEBUG: "1"
+      AGRAPH_HOST: agraph
+      AGRAPH_PORT: "10035"
+      AGRAPH_SUPER_USER: ${AGRAPH_SUPER_USER}
+      AGRAPH_SUPER_PASSWORD: ${AGRAPH_SUPER_PASSWORD}
+      AGRAPH_REPOSITORY: ${AGRAPH_REPOSITORY}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
     networks:
       - app_network
+    restart: unless-stopped
 
 networks:
   app_network:
-    driver: bridge
+    external: true
+    name: fdppv1_default

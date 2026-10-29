@@ -9,7 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 import hashlib
-
+import hmac
+from werkzeug.security import generate_password_hash, check_password_hash
 
 class User:
     """Represents a user account"""
@@ -54,12 +55,36 @@ class User:
     
     @staticmethod
     def hash_password(password: str) -> str:
-        """Hash a password using SHA256"""
-        return hashlib.sha256(password.encode()).hexdigest()
-    
+        """Create a salted, slow password hash."""
+        return generate_password_hash(password, method="scrypt")
+
     def verify_password(self, password: str) -> bool:
-        """Verify password matches hash"""
-        return self.password_hash == User.hash_password(password)
+        """Verify modern hashes and transparently migrate legacy SHA-256 hashes."""
+        if not self.password_hash:
+            return False
+
+        stored = self.password_hash
+
+        if stored.startswith(("scrypt:", "pbkdf2:")):
+            try:
+                return check_password_hash(stored, password)
+            except (ValueError, TypeError):
+                return False
+
+        # Legacy hashes were SHA-256 hex strings.
+        if re.fullmatch(r"[0-9a-fA-F]{64}", stored):
+            legacy = hashlib.sha256(password.encode("utf-8")).hexdigest()
+            if hmac.compare_digest(stored.lower(), legacy):
+                self.password_hash = User.hash_password(password)
+                return True
+
+        return False
+
+    def to_public_dict(self) -> Dict:
+        """Return user fields safe for API responses."""
+        data = self.to_dict()
+        data.pop("password_hash", None)
+        return data
 
 
 class Connection:
@@ -122,6 +147,12 @@ class Connection:
             'updated_at': self.updated_at
         }
     
+    def to_public_dict(self) -> Dict:
+        """Return connection metadata without credentials or ownership internals."""
+        data = self.to_dict()
+        data.pop("password", None)
+        return data
+
     @staticmethod
     def from_dict(data: Dict) -> 'Connection':
         """Create connection from dictionary"""
@@ -157,9 +188,8 @@ class UserManager:
     def _ensure_storage(self):
         """Create storage file if it doesn't exist"""
         if not self.storage_path.exists():
-            # Create default admin user
-            admin = User('admin', User.hash_password('admin'), is_admin=True)
-            self.storage_path.write_text(json.dumps([admin.to_dict()], indent=2))
+            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+            self.storage_path.write_text("[]", encoding="utf-8")
     
     def _load_users(self) -> List[Dict]:
         """Load users from storage"""
@@ -174,19 +204,17 @@ class UserManager:
         self.storage_path.write_text(json.dumps(users, indent=2))
     
     def authenticate(self, username: str, password: str) -> Optional[Dict]:
-        """Authenticate user and return user dict if valid"""
+        """Authenticate a user, migrate legacy hashes, and return safe fields."""
         users = self._load_users()
         for user_data in users:
             user = User.from_dict(user_data)
             if user.username == username and user.verify_password(password):
-                # Update last login
-                user_data['last_login'] = datetime.utcnow().isoformat()
+                user_data["password_hash"] = user.password_hash
+                user_data["last_login"] = datetime.utcnow().isoformat()
                 self._save_users(users)
-                # Return user data without password hash
-                user_dict = user.to_dict()
-                return user_dict
+                return user.to_public_dict()
         return None
-    
+
     def get_user(self, user_id: str) -> Optional[Dict]:
         """Get user by ID"""
         users = self._load_users()
@@ -215,7 +243,7 @@ class UserManager:
                        is_admin=is_admin, email=email, full_name=full_name)
         users.append(new_user.to_dict())
         self._save_users(users)
-        return new_user.to_dict()
+        return new_user.to_public_dict()
     
     def update_user(self, user_id: str, updates: Dict) -> Optional[Dict]:
         """Update user details (admin only)"""
@@ -543,3 +571,5 @@ def validate_data_against_cdm(entity_type: str, data: Dict) -> tuple[bool, List[
                 errors.append(f"Field {key} should be boolean, got {type(value).__name__}")
     
     return len(errors) == 0, errors
+
+import re

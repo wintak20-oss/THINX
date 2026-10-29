@@ -1,258 +1,349 @@
 import json
-from rdflib import Graph, URIRef, Literal, Namespace
-from rdflib.namespace import RDF, SKOS, XSD, RDFS
-import urllib.parse
-import requests
 import os
+import urllib.parse
+import traceback
 
-# Load your ontology into the RDF graph
-ontology_file = "hds_cdm.ttl"
-g = Graph()
-try:
-    g.parse(ontology_file, format="turtle")
-    print(f"Loaded ontology from {ontology_file}")
-except Exception as e:
-    print(f"Error loading ontology: {e}")
+import requests
+from rdflib import Graph, URIRef, Literal, Namespace
+from rdflib.namespace import RDF, XSD
 
-# Namespaces
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+ONTOLOGY_FILE = "hds_cdm.ttl"
+DATA_FILE = "cleaned_data.json"
+OUTPUT_FILE = "Human_trafficking_output.ttl"
+
 HDS = Namespace("http://example.org/hds#")
-g.bind("hds", HDS)
+RESOURCE_BASE = "http://example.org/resource/"
 
-# Load new JSON data
-data_file = "cleaned_data.json"
-try:
-    with open(data_file, "r") as f:
-        victims_data = json.load(f)
-    print(f"Loaded data from {data_file}")
-except FileNotFoundError:
-    print(f"Error: {data_file} not found.")
-    victims_data = []
 
-# Helper functions
 def sanitize_uri(value):
-    if not value:
+    """Return a URL-safe identifier component."""
+    if value is None or str(value).strip() == "":
         return "Unknown"
-    return urllib.parse.quote(str(value).replace(" ", "_"))
+    return urllib.parse.quote(str(value).strip().replace(" ", "_"), safe="_-.")
+
 
 def safe_add(graph, subject, predicate, obj):
-    if subject and predicate and obj is not None:
+    if subject is not None and predicate is not None and obj is not None:
         graph.add((subject, predicate, obj))
 
+
 def as_literal(value, datatype=XSD.string):
+    """Convert non-empty values to RDF literals; skip missing/invalid values."""
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
+
     if isinstance(value, list):
-        if len(value) == 0:
+        if not value:
             return None
-        value = ", ".join([str(v) for v in value])
-    
-    # Special handling for integer datatype
+        value = ", ".join(str(item) for item in value)
+
     if datatype == XSD.integer:
-        # Check if value is a valid integer or numeric string
         try:
-            # Try to convert to int
-            int_val = int(value)
-            return Literal(int_val, datatype=datatype)
-        except (ValueError, TypeError):
-            # If conversion fails (e.g., "not specified", "Unknown"), return None
-            # This will cause safe_add to skip adding the triple
+            # Avoid accepting values such as 3.5 or "unknown" as integers.
+            int_value = int(value)
+            return Literal(int_value, datatype=datatype)
+        except (ValueError, TypeError, OverflowError):
             return None
-    
+
     return Literal(value, datatype=datatype)
 
-# Process victims data
-print("Processing victim data...")
-for victim in victims_data:
-    victim_id = victim.get("victim_id", "Unknown")
-    victim_uri = URIRef(f"http://example.org/resource/Victim/{sanitize_uri(victim_id)}")
-    safe_add(g, victim_uri, RDF.type, HDS.Victim)
-    safe_add(g, victim_uri, HDS.id, as_literal(victim_id))
 
-    # Add victim attributes
-    safe_add(g, victim_uri, HDS.age, as_literal(victim.get("age"), XSD.integer))
-    safe_add(g, victim_uri, HDS.gender, as_literal(victim.get("gender")))
-    safe_add(g, victim_uri, HDS.nationality, as_literal(victim.get("nationality")))
-    
-    # Trafficker(s)
-    for trafficker_name in victim.get("trafficker_name", []):
-        trafficker_uri = URIRef(f"http://example.org/resource/Trafficker/{sanitize_uri(trafficker_name)}")
-        safe_add(g, trafficker_uri, RDF.type, HDS.Trafficker)
-        safe_add(g, trafficker_uri, HDS.name, as_literal(trafficker_name))
-        
-        # Create an Incident "Trafficking" to link Victim and Trafficker
-        incident_uri = URIRef(f"http://example.org/resource/Incident/Trafficking_{sanitize_uri(victim_id)}_{sanitize_uri(trafficker_name)}")
-        safe_add(g, incident_uri, RDF.type, HDS.Incident)
-        safe_add(g, incident_uri, HDS.type, as_literal("Trafficking"))
-        safe_add(g, incident_uri, HDS.affected, victim_uri)
-        safe_add(g, incident_uri, HDS.involved, trafficker_uri)
+def load_graph():
+    graph = Graph()
+    graph.bind("hds", HDS)
 
-    # Crimes
-    for crime in victim.get("crimes", []):
-        # Sexual Violence
-        if crime.get("sexual_violence_experienced_binary"):
-            sv_uri = URIRef(f"http://example.org/resource/Incident/SV_{sanitize_uri(victim_id)}")
-            safe_add(g, sv_uri, RDF.type, HDS.Incident)
-            safe_add(g, sv_uri, HDS.type, as_literal("Sexual Violence"))
-            safe_add(g, sv_uri, HDS.description, as_literal(crime.get("sexual_violence_experienced_type")))
-            safe_add(g, sv_uri, HDS.affected, victim_uri)
+    # Load the ontology when available. Stop rather than silently continuing
+    # if an ontology file exists but cannot be parsed.
+    if os.path.exists(ONTOLOGY_FILE):
+        graph.parse(ONTOLOGY_FILE, format="turtle")
+        print(f"Loaded ontology from {ONTOLOGY_FILE}")
+    else:
+        print(
+            f"WARNING: {ONTOLOGY_FILE} was not found. "
+            "Continuing without ontology triples."
+        )
 
-        # Abuse
-        if "abuse_type_experienced" in crime:
-             abuse_uri = URIRef(f"http://example.org/resource/Incident/Abuse_{sanitize_uri(victim_id)}")
-             safe_add(g, abuse_uri, RDF.type, HDS.Incident)
-             safe_add(g, abuse_uri, HDS.type, as_literal("Abuse"))
-             safe_add(g, abuse_uri, HDS.description, as_literal(crime.get("abuse_labels_experienced")))
-             safe_add(g, abuse_uri, HDS.affected, victim_uri)
+    if not os.path.exists(DATA_FILE):
+        raise FileNotFoundError(
+            f"{DATA_FILE} was not found. No RDF output or upload was performed."
+        )
 
-    # Borders and Extortion
-    for border_crossing in victim.get("borders_crossed", []):
-        if isinstance(border_crossing, dict):
-            border_name = border_crossing.get("border", "no data")
-            money_amount = border_crossing.get("money_extorted_amount", "no data")
-        else:
+    with open(DATA_FILE, "r", encoding="utf-8") as file:
+        victims_data = json.load(file)
+
+    if not isinstance(victims_data, list):
+        raise ValueError(f"{DATA_FILE} must contain a JSON list of records.")
+
+    print(f"Loaded {len(victims_data)} records from {DATA_FILE}")
+
+    for victim in victims_data:
+        if not isinstance(victim, dict):
             continue
 
-        # Location
-        location_uri = URIRef(f"http://example.org/resource/Location/{sanitize_uri(border_name)}")
-        safe_add(g, location_uri, RDF.type, HDS.Location)
-        safe_add(g, location_uri, HDS.description, as_literal(border_name))
+        victim_id = victim.get("victim_id")
+        if victim_id is None or str(victim_id).strip() == "":
+            print("WARNING: Skipping a record with no victim_id.")
+            continue
 
-        # Event (Crossing)
-        event_uri = URIRef(f"http://example.org/resource/Event/Crossing_{sanitize_uri(victim_id)}_{sanitize_uri(border_name)}")
-        safe_add(g, event_uri, RDF.type, HDS.Event)
-        safe_add(g, event_uri, HDS.type, as_literal("Border Crossing"))
-        safe_add(g, event_uri, HDS.location, location_uri)
-        safe_add(g, event_uri, HDS.involved, victim_uri)
-
-        # Extortion
-        if money_amount != "no data":
-            extortion_uri = URIRef(f"http://example.org/resource/Incident/Extortion_{sanitize_uri(victim_id)}_{sanitize_uri(border_name)}")
-            safe_add(g, extortion_uri, RDF.type, HDS.Incident)
-            safe_add(g, extortion_uri, HDS.type, as_literal("Extortion"))
-            safe_add(g, extortion_uri, HDS.location, location_uri)
-            safe_add(g, extortion_uri, HDS.affected, victim_uri)
-            safe_add(g, extortion_uri, HDS.description, as_literal(f"Extorted amount: {money_amount}"))
-
-# Save the RDF graph
-output_file = "Human_trafficking_output.ttl"
-g.serialize(destination=output_file, format="turtle")
-print(f"RDF data has been successfully generated and saved to {output_file}")
-
-# AllegroGraph Connection Details (from environment variables or defaults)
-repo_name = os.getenv("AGRAPH_REPOSITORY", "KS01")
-host = os.getenv("AGRAPH_HOST", "ag1jdz6nqkhfjj72.allegrograph.cloud")
-port = int(os.getenv("AGRAPH_PORT", "10035"))
-username = os.getenv("AGRAPH_USER", "Admin")
-password = os.getenv("AGRAPH_PASSWORD", "KbA8KuX3E7aZSOVwGCxiK4")
-
-# Convert ag1jdz6nqkhfjj72.allegrograph.cloud to allegrograph for Docker networking
-if host == "ag1jdz6nqkhfjj72.allegrograph.cloud" or host == "127.0.0.1":
-    host = "allegrograph"
-    print(f"Converted ag1jdz6nqkhfjj72.allegrograph.cloud to allegrograph for Docker networking")
-
-print(f"Connection details: host={host}, port={port}, repo={repo_name}, user={username}")
-
-# Load RDF data from the generated file
-rdf_file = "Human_trafficking_output.ttl"  # Path to the RDF file
-
-# Upload RDF Data to AllegroGraph using REST API (Python 3.11+ compatible)
-try:
-    print(f"Connecting to AllegroGraph repository: {repo_name} at {host}:{port}")
-    
-    # Read the RDF file
-    with open(rdf_file, "rb") as f:
-        rdf_content = f.read()
-    
-    print(f"Read {len(rdf_content)} bytes from {rdf_file}")
-    
-    # Check if repository exists, create if not
-    catalog_url = f"http://{host}:{port}/catalogs"
-    repositories_url = f"{catalog_url}/repositories"
-    repo_check_url = f"{repositories_url}/{repo_name}"
-    
-    check_response = requests.get(repo_check_url, auth=(username, password))
-    
-    if check_response.status_code == 404:
-        print(f"Repository {repo_name} does not exist. Creating it...")
-        
-        # Create the repository
-        create_url = f"{catalog_url}/root/repositories"
-        create_data = {
-            "id": repo_name,
-            "title": "Human Trafficking Research Data",
-            "description": "RDF knowledge graph for human trafficking research"
-        }
-        
-        create_response = requests.put(
-            f"{create_url}/{repo_name}",
-            auth=(username, password),
-            headers={"Content-Type": "application/json"},
-            json=create_data
+        victim_uri = URIRef(
+            f"{RESOURCE_BASE}Victim/{sanitize_uri(victim_id)}"
         )
-        
-        if create_response.status_code in [200, 201, 204]:
-            print(f"SUCCESS: Repository {repo_name} created successfully!")
+        safe_add(graph, victim_uri, RDF.type, HDS.Victim)
+        safe_add(graph, victim_uri, HDS.id, as_literal(victim_id))
+        safe_add(graph, victim_uri, HDS.age, as_literal(victim.get("age"), XSD.integer))
+        safe_add(graph, victim_uri, HDS.gender, as_literal(victim.get("gender")))
+        safe_add(graph, victim_uri, HDS.nationality, as_literal(victim.get("nationality")))
+
+        # Trafficker(s)
+        trafficker_value = victim.get("trafficker_name")
+        if isinstance(trafficker_value, str):
+            trafficker_names = [trafficker_value]
+        elif isinstance(trafficker_value, list):
+            trafficker_names = trafficker_value
         else:
-            print(f"ERROR: Failed to create repository. Status: {create_response.status_code}")
-            print(f"Response: {create_response.text}")
-            raise Exception(f"Failed to create repository: {create_response.text}")
-    else:
-        print(f"Repository {repo_name} exists.")
-    
-    # Get current triple count before upload
+            trafficker_names = []
+
+        for trafficker_name in trafficker_names:
+            if not isinstance(trafficker_name, str):
+                continue
+
+            trafficker_name = trafficker_name.strip()
+            if trafficker_name.lower() in {
+                "", "no data", "unknown", "none", "null", "not specified"
+            }:
+                continue
+
+            trafficker_uri = URIRef(
+                f"{RESOURCE_BASE}Trafficker/{sanitize_uri(trafficker_name)}"
+            )
+            safe_add(graph, trafficker_uri, RDF.type, HDS.Trafficker)
+            safe_add(graph, trafficker_uri, HDS.name, as_literal(trafficker_name))
+
+            incident_uri = URIRef(
+                f"{RESOURCE_BASE}Incident/Trafficking_"
+                f"{sanitize_uri(victim_id)}_{sanitize_uri(trafficker_name)}"
+            )
+            safe_add(graph, incident_uri, RDF.type, HDS.Incident)
+            safe_add(graph, incident_uri, HDS.type, as_literal("Trafficking"))
+            safe_add(graph, incident_uri, HDS.affected, victim_uri)
+            safe_add(graph, incident_uri, HDS.involved, trafficker_uri)
+
+        # Crimes
+        crimes = victim.get("crimes", [])
+        if isinstance(crimes, list):
+            for crime in crimes:
+                if not isinstance(crime, dict):
+                    continue
+
+                if crime.get("sexual_violence_experienced_binary"):
+                    sv_uri = URIRef(
+                        f"{RESOURCE_BASE}Incident/SV_{sanitize_uri(victim_id)}"
+                    )
+                    safe_add(graph, sv_uri, RDF.type, HDS.Incident)
+                    safe_add(graph, sv_uri, HDS.type, as_literal("Sexual Violence"))
+                    safe_add(
+                        graph,
+                        sv_uri,
+                        HDS.description,
+                        as_literal(crime.get("sexual_violence_experienced_type")),
+                    )
+                    safe_add(graph, sv_uri, HDS.affected, victim_uri)
+
+                if crime.get("abuse_type_experienced"):
+                    abuse_uri = URIRef(
+                        f"{RESOURCE_BASE}Incident/Abuse_{sanitize_uri(victim_id)}"
+                    )
+                    safe_add(graph, abuse_uri, RDF.type, HDS.Incident)
+                    safe_add(graph, abuse_uri, HDS.type, as_literal("Abuse"))
+                    safe_add(
+                        graph,
+                        abuse_uri,
+                        HDS.description,
+                        as_literal(crime.get("abuse_labels_experienced")),
+                    )
+                    safe_add(graph, abuse_uri, HDS.affected, victim_uri)
+
+        # Border crossings and extortion
+        crossings = victim.get("borders_crossed", [])
+        if isinstance(crossings, list):
+            for border_crossing in crossings:
+                if not isinstance(border_crossing, dict):
+                    continue
+
+                border_name = border_crossing.get("border")
+                money_amount = border_crossing.get("money_extorted_amount")
+
+                if not border_name or str(border_name).strip().lower() in {
+                    "no data", "unknown", "none", "null", "not specified"
+                }:
+                    continue
+
+                location_uri = URIRef(
+                    f"{RESOURCE_BASE}Location/{sanitize_uri(border_name)}"
+                )
+                safe_add(graph, location_uri, RDF.type, HDS.Location)
+                safe_add(graph, location_uri, HDS.description, as_literal(border_name))
+
+                event_uri = URIRef(
+                    f"{RESOURCE_BASE}Event/Crossing_"
+                    f"{sanitize_uri(victim_id)}_{sanitize_uri(border_name)}"
+                )
+                safe_add(graph, event_uri, RDF.type, HDS.Event)
+                safe_add(graph, event_uri, HDS.type, as_literal("Border Crossing"))
+                safe_add(graph, event_uri, HDS.location, location_uri)
+                safe_add(graph, event_uri, HDS.involved, victim_uri)
+
+                if money_amount is not None and str(money_amount).strip().lower() not in {
+                    "", "no data", "unknown", "none", "null", "not specified"
+                }:
+                    extortion_uri = URIRef(
+                        f"{RESOURCE_BASE}Incident/Extortion_"
+                        f"{sanitize_uri(victim_id)}_{sanitize_uri(border_name)}"
+                    )
+                    safe_add(graph, extortion_uri, RDF.type, HDS.Incident)
+                    safe_add(graph, extortion_uri, HDS.type, as_literal("Extortion"))
+                    safe_add(graph, extortion_uri, HDS.location, location_uri)
+                    safe_add(graph, extortion_uri, HDS.affected, victim_uri)
+                    safe_add(
+                        graph,
+                        extortion_uri,
+                        HDS.description,
+                        as_literal(f"Extorted amount: {money_amount}"),
+                    )
+
+    return graph
+
+
+def verify_repository(host, port, repo_name, username, password):
+    """Read-only check against the verified root-catalog endpoint."""
+    catalog_url = f"http://{host}:{port}/catalogs/root/repositories"
+    response = requests.get(
+        catalog_url,
+        auth=(username, password),
+        timeout=10,
+    )
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            "Could not verify AllegroGraph repositories. "
+            f"HTTP status: {response.status_code}. Upload stopped."
+        )
+
+    # The endpoint has returned a repository listing in the current setup.
+    if repo_name not in response.text:
+        raise RuntimeError(
+            f"Target repository '{repo_name}' was not confirmed in the root "
+            "catalog listing. Upload stopped; no repository was created."
+        )
+
+    print(f"Verified existing repository: {repo_name}")
+
+
+def upload_rdf(rdf_file):
+    """Upload the generated Turtle file only after verifying configuration/repo."""
+    repo_name = os.getenv("AGRAPH_REPOSITORY")
+    host = os.getenv("AGRAPH_HOST", "agraph")
+    port = int(os.getenv("AGRAPH_PORT", "10035"))
+    username = os.getenv("AGRAPH_SUPER_USER")
+    password = os.getenv("AGRAPH_SUPER_PASSWORD")
+
+    if not repo_name:
+        raise RuntimeError("AGRAPH_REPOSITORY is not configured.")
+    if not username or not password:
+        raise RuntimeError(
+            "Missing AllegroGraph credentials. Check AGRAPH_SUPER_USER and "
+            "AGRAPH_SUPER_PASSWORD in the environment."
+        )
+
+    print(f"AllegroGraph host: {host}")
+    print(f"AllegroGraph port: {port}")
+    print(f"Target repository: {repo_name}")
+
+    verify_repository(host, port, repo_name, username, password)
+
+    with open(rdf_file, "rb") as file:
+        rdf_content = file.read()
+
+    if not rdf_content.strip():
+        raise RuntimeError("The RDF output file is empty. Upload stopped.")
+
     size_url = f"http://{host}:{port}/repositories/{repo_name}/size"
-    size_response = requests.get(size_url, auth=(username, password))
-    
-    if size_response.status_code == 200:
-        initial_count = int(size_response.text.strip())
-        print(f"Current triple count in repository: {initial_count}")
-    else:
-        print(f"Warning: Could not get initial size. Status: {size_response.status_code}")
-        initial_count = 0
-    
-    # Upload the RDF data
     statements_url = f"http://{host}:{port}/repositories/{repo_name}/statements"
-    headers = {
-        "Content-Type": "application/x-turtle"  # Turtle format
-    }
-    
-    print("Uploading RDF data to AllegroGraph...")
-    upload_response = requests.post(
+
+    # A size check is required before upload; do not assume zero on failure.
+    size_response = requests.get(
+        size_url, auth=(username, password), timeout=10
+    )
+    if size_response.status_code != 200:
+        raise RuntimeError(
+            "Could not verify the repository's initial triple count. "
+            f"HTTP status: {size_response.status_code}. Upload stopped."
+        )
+
+    initial_count = int(size_response.text.strip())
+    print(f"Current triple count in repository: {initial_count}")
+    print(f"Read {len(rdf_content)} bytes from {rdf_file}")
+
+    # This is the only write operation in the script.
+    statements_response = requests.post(
         statements_url,
         auth=(username, password),
-        headers=headers,
-        data=rdf_content
+        headers={"Content-Type": "application/x-turtle"},
+        data=rdf_content,
+        timeout=60,
     )
-    
-    if upload_response.status_code in [200, 201, 204]:
-        print("RDF data upload completed!")
-        
-        # Get final triple count after upload
-        size_response = requests.get(size_url, auth=(username, password))
-        if size_response.status_code == 200:
-            final_count = int(size_response.text.strip())
-            print(f"Final triple count in repository: {final_count}")
-            print(f"Triples added: {final_count - initial_count}")
-            
-            if final_count > initial_count:
-                print("SUCCESS: Data was actually uploaded to AllegroGraph!")
-            else:
-                print("WARNING: No new triples were added. Data might already exist or be duplicates.")
-        else:
-            print("SUCCESS: Upload completed but could not verify final count.")
+
+    if statements_response.status_code not in (200, 201, 204):
+        raise RuntimeError(
+            "RDF upload failed with HTTP status "
+            f"{statements_response.status_code}: {statements_response.text[:500]}"
+        )
+
+    print("RDF upload request completed.")
+
+    final_response = requests.get(
+        size_url, auth=(username, password), timeout=10
+    )
+    if final_response.status_code != 200:
+        print("WARNING: Upload returned success, but final triple count could not be verified.")
+        return
+
+    final_count = int(final_response.text.strip())
+    print(f"Final triple count in repository: {final_count}")
+    print(f"Net triple-count change: {final_count - initial_count}")
+
+    if final_count > initial_count:
+        print("SUCCESS: The repository contains more triples than before.")
     else:
-        print(f"ERROR: Upload failed with status code: {upload_response.status_code}")
-        print(f"Response: {upload_response.text}")
-        raise Exception(f"Upload failed: {upload_response.text}")
-            
-except FileNotFoundError:
-    print(f"ERROR: RDF file not found: {rdf_file}")
-    print("Please make sure you have generated the RDF file first (Step 3).")
-except requests.exceptions.ConnectionError:
-    print("ERROR: Could not connect to AllegroGraph.")
-    print("Please make sure AllegroGraph is running at http://ag1jdz6nqkhfjj72.allegrograph.cloud:10035")
-    print("You can start it with: docker start allegrograph")
-except Exception as e:
-    print(f"An error occurred: {e}")
-    import traceback
-    traceback.print_exc()
+        print(
+            "WARNING: No net increase in triple count was observed. "
+            "The data may overlap existing triples or the repository may need inspection."
+        )
+
+
+def main():
+    graph = load_graph()
+    graph.serialize(destination=OUTPUT_FILE, format="turtle")
+    print(f"Generated RDF file: {OUTPUT_FILE}")
+    print(f"Generated graph triple count: {len(graph)}")
+
+    # NOTE: Running this script writes RDF to the configured repository.
+    # Review the generated TTL and confirm the target repository before running
+    # it with production or sensitive data.
+    upload_rdf(OUTPUT_FILE)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except FileNotFoundError as error:
+        print(f"ERROR: {error}")
+    except requests.exceptions.RequestException as error:
+        print(f"ERROR: AllegroGraph request failed: {error}")
+    except Exception as error:
+        print(f"ERROR: {error}")
+        traceback.print_exc()
