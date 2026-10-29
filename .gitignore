@@ -27,3 +27,12 @@ venv/
 .idea/
 .DS_Store
 Thumbs.db
+# AllegroGraph runtime and database files
+/agraph-data/
+__pycache__/
+*.py[cod]
+
+
+# Local connection settings containing credentials
+/backend/data/connections.json
+/backend/data/users.json

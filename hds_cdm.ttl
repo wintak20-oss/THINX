@@ -9,6 +9,7 @@
 @prefix gsso: <http://purl.org/gsso/> .
 @prefix nci: <http://ncicb.nci.nih.gov/xml/owl/EVS/> .
 @prefix add: <http://example.org/add#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
 #### CLASSES
 
